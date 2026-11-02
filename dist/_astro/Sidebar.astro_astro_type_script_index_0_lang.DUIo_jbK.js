@@ -1,0 +1,1 @@
+import{r as e}from"./utils.C_5vcakl.js";var t=document.getElementById(`estado`),n=document.getElementById(`estado-txt`);function r(){let r=e();t.classList.toggle(`abierto`,r.abierto),n.textContent=r.abierto?`Abierto ahora · cerramos a las `+r.cierra:`Cerrado · abrimos `+(r.cuando===`hoy`?`hoy`:`mañana`)+` a las `+r.abre}r(),setInterval(r,6e4);
