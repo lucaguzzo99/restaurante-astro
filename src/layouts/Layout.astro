@@ -1,0 +1,70 @@
+---
+import '../styles/global.css';
+
+interface Props {
+	title?: string;
+	description?: string;
+}
+
+const {
+	title = 'Sabores del Sur | Restaurante y reservas',
+	description = 'Restaurante de cocina casera y parrilla. Mirá nuestros horarios de toda la semana y reservá tu mesa online.',
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="es">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<link rel="icon" href="/favicon.ico" />
+		<meta name="generator" content={Astro.generator} />
+		<title>{title}</title>
+		<meta name="description" content={description} />
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+			rel="stylesheet"
+		/>
+		<script is:inline>
+			// Aplica el tema antes de pintar para evitar el parpadeo
+			(function () {
+				var t = null;
+				try {
+					t = localStorage.getItem('tema-sabores');
+				} catch (e) {}
+				if (t !== 'dark' && t !== 'light') {
+					t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+				}
+				document.documentElement.setAttribute('data-theme', t);
+			})();
+		</script>
+	</head>
+	<body>
+		<slot />
+
+		<script>
+			// Aparición al hacer scroll
+			if ('IntersectionObserver' in window) {
+				document.documentElement.classList.add('js');
+				const io = new IntersectionObserver(
+					(entradas) => {
+						entradas.forEach((en) => {
+							if (en.isIntersecting) {
+								en.target.classList.add('visto');
+								io.unobserve(en.target);
+							}
+						});
+					},
+					{ threshold: 0.1 },
+				);
+				document.querySelectorAll<HTMLElement>('.reveal').forEach((el, i) => {
+					el.style.transitionDelay = (i % 3) * 80 + 'ms';
+					io.observe(el);
+				});
+			}
+		</script>
+	</body>
+</html>

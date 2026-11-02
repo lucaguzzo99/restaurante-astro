@@ -1,0 +1,67 @@
+<article class="hero hero-in" id="inicio">
+	<header class="reveal">
+		<h1>Cocina casera, <span>mesa reservada</span>.</h1>
+	</header>
+	<figure class="hero-img reveal" aria-hidden="true">
+		<img class="plato p1" src="/images/pizza.jpg" alt="" width="1000" height="750" />
+		<img class="plato p2" src="/images/hamburguesa.jpg" alt="" width="1000" height="750" />
+		<img class="plato p3" src="/images/postre.jpg" alt="" width="1000" height="750" />
+	</figure>
+	<p class="hero-p reveal">
+		Pizzas, pastas y parrilla hechas con ingredientes frescos. Mirá nuestros horarios de toda la semana y reservá tu mesa en un par de clics.
+	</p>
+	<footer class="reveal">
+		<div class="hero-botones">
+			<a class="btn" href="#reservas">Reservar mesa</a>
+			<a class="btn btn-borde" href="#menu">Ver el menú</a>
+			<a class="btn btn-borde" href="#delivery">🛵 Pedir delivery</a>
+		</div>
+		<ul class="cifras">
+			<li><strong>6</strong> platos estrella</li>
+			<li><strong>7 días</strong> abiertos</li>
+			<li><strong>Online</strong> reservas 24 h</li>
+		</ul>
+	</footer>
+</article>
+
+<style>
+	.hero {
+		background: var(--hero), var(--bg);
+		border: 1px solid var(--line);
+		border-radius: 28px;
+		margin-top: 1rem;
+		padding: 3.5rem 2rem;
+	}
+	.hero-in { grid-template-columns: 1.05fr 0.95fr; align-items: center; gap: 0 3rem; display: grid; }
+	.hero-in > header,
+	.hero-in > p,
+	.hero-in > footer { grid-column: 1; }
+	.hero-in > figure { grid-column: 2; grid-row: 1 / span 3; margin: 0; }
+	.hero h1 { margin-bottom: 1.1rem; font-size: clamp(2.2rem, 4vw, 3.4rem); }
+	.hero h1 span { color: var(--accent); font-style: italic; }
+	.hero-p { max-width: 50ch; color: var(--muted); margin-bottom: 1.8rem; font-size: 1.12rem; }
+	.hero-botones { flex-wrap: wrap; gap: 0.8rem; display: flex; }
+	.cifras { color: var(--muted); flex-wrap: wrap; gap: 0.8rem 2rem; margin: 2.2rem 0 0; padding: 0; font-size: 0.9rem; list-style: none; display: flex; }
+	.cifras strong { color: var(--ink); font-family: Fraunces, Georgia, serif; font-size: 1.6rem; display: block; }
+
+	.hero-img { min-height: 440px; position: relative; }
+	.plato {
+		border: 6px solid var(--surface);
+		width: 68%;
+		box-shadow: var(--sombra);
+		aspect-ratio: 4 / 3;
+		object-fit: cover;
+		border-radius: 28px;
+		position: absolute;
+	}
+	.p1 { top: 0; right: 0; transform: rotate(3deg); }
+	.p2 { z-index: 2; top: 38%; left: 0; transform: rotate(-4deg); }
+	.p3 { z-index: 1; width: 56%; bottom: 0; right: 6%; transform: rotate(2deg); }
+
+	@media (width <= 860px) {
+		.hero { padding: 2.5rem 1.2rem; }
+		.hero-in { grid-template-columns: 1fr; }
+		.hero-in > figure { grid-column: 1; grid-row: auto; margin-bottom: 2rem; }
+		.hero-img { min-height: 380px; }
+	}
+</style>

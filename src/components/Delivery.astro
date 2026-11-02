@@ -1,0 +1,74 @@
+---
+import { DELIVERY, EXTRAS, formatoPrecio } from '../data/restaurante';
+---
+
+<section class="seccion" id="delivery">
+	<div class="contenedor">
+		<header class="cabecera reveal">
+			<span class="sobretitulo">Delivery</span>
+			<h2>Pedí desde <em>tu casa</em></h2>
+			<p>Sumá platos al pedido con el botón "Agregar", revisá el carrito y confirmá. Elegí delivery o retiro en el local.</p>
+		</header>
+		<ul class="pasos-d reveal">
+			<li>
+				<span>🛵</span>
+				<div><strong>Envío {formatoPrecio(DELIVERY.envio)}</strong><small>Gratis desde {formatoPrecio(DELIVERY.gratisDesde)}</small></div>
+			</li>
+			<li>
+				<span>🧾</span>
+				<div><strong>Pedido mínimo {formatoPrecio(DELIVERY.minimo)}</strong><small>Para delivery</small></div>
+			</li>
+			<li>
+				<span>⏱️</span>
+				<div><strong>35 a 45 min</strong><small>Tiempo estimado de entrega</small></div>
+			</li>
+		</ul>
+		<h3 class="extras-t reveal">Bebidas y acompañamientos</h3>
+		<div class="extras">
+			{
+				EXTRAS.map((e) => (
+					<div class="extra reveal">
+						<span class="extra-i" aria-hidden="true">{e.icono}</span>
+						<div class="extra-t">
+							<strong>{e.nombre}</strong>
+							<small>{e.desc}</small>
+						</div>
+						<b class="extra-p">{formatoPrecio(e.monto)}</b>
+						<button type="button" class="agregar chico" data-add={e.id} aria-label={`Agregar ${e.nombre}`}>
+							+ <span class="cant" data-cant={e.id} hidden>0</span>
+						</button>
+					</div>
+				))
+			}
+		</div>
+		<div class="ver-carrito reveal">
+			<button type="button" class="btn" data-abrir-carrito>Ver mi pedido</button>
+		</div>
+	</div>
+</section>
+
+<style>
+	.pasos-d { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; margin: 0 0 2.4rem; padding: 0; list-style: none; display: grid; }
+	.pasos-d li { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; align-items: center; gap: 0.9rem; padding: 1rem 1.2rem; display: flex; }
+	.pasos-d li > span {
+		background: color-mix(in srgb, var(--gold) 20%, transparent);
+		border-radius: 14px;
+		flex: none;
+		place-items: center;
+		width: 2.8rem;
+		height: 2.8rem;
+		font-size: 1.4rem;
+		display: grid;
+	}
+	.pasos-d strong { display: block; }
+	.pasos-d small { color: var(--muted); }
+	.extras-t { margin-bottom: 1rem; font-family: Fraunces, Georgia, serif; font-size: 1.4rem; }
+	.extras { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 0.9rem; display: grid; }
+	.extra { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; align-items: center; gap: 0.9rem; padding: 0.9rem 1.1rem; display: flex; }
+	.extra-i { font-size: 1.7rem; }
+	.extra-t { flex: 1; min-width: 0; }
+	.extra-t strong, .extra-t small { display: block; }
+	.extra-t small { color: var(--muted); font-size: 0.82rem; }
+	.extra-p { color: var(--accent); white-space: nowrap; }
+	.ver-carrito { text-align: center; margin-top: 2rem; }
+</style>

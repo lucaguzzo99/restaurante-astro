@@ -1,0 +1,35 @@
+<footer class="pie">
+	<div class="contenedor pie-in">
+		<div>
+			<strong class="pie-marca">Sabores del Sur</strong>
+			<p>Av. San Martín 1234 · Cocina casera y parrilla.</p>
+		</div>
+		<div>
+			<strong>Horario</strong>
+			<p>Lun a Jue 12:00–23:00 · Vie 12:00–00:30<br />Sáb 11:00–01:00 · Dom 11:00–17:00</p>
+		</div>
+		<div>
+			<strong>Reservas</strong>
+			<p>Reservá online, a cualquier hora, desde esta página.<br />También podés pedir delivery o retirar en el local.</p>
+		</div>
+	</div>
+	<div class="contenedor pie-fin">
+		<nav class="otros" aria-label="Otras páginas">
+			<a href="https://lucaguzzo99.github.io/mantenimiento0/">Inicio</a>
+			<a href="http://mascotas.estilo.digital/">Mascotas</a>
+			<a href="http://mercadovirtual.estilo.digital/">Mercado Virtual</a>
+		</nav>
+		© 2026 Sabores del Sur · Fotos de dominio público (CC0) de Wikimedia Commons.
+	</div>
+</footer>
+
+<style>
+	.pie { background: var(--bg2); border-top: 1px solid var(--line); padding-top: 3rem; }
+	.pie-in { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.6rem; display: grid; }
+	.pie-marca { font-family: Fraunces, Georgia, serif; font-size: 1.3rem; }
+	.pie p { color: var(--muted); margin-top: 0.4rem; font-size: 0.92rem; }
+	.otros { flex-wrap: wrap; justify-content: center; gap: 0.4rem 1.4rem; margin-bottom: 0.9rem; display: flex; }
+	.otros a { color: var(--accent); font-weight: 700; text-decoration: none; }
+	.otros a:hover { text-decoration: underline; }
+	.pie-fin { border-top: 1px solid var(--line); color: var(--muted); text-align: center; margin-top: 2rem; padding-block: 1.3rem; font-size: 0.85rem; }
+</style>

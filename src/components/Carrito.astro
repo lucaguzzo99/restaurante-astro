@@ -1,0 +1,454 @@
+<button type="button" class="fab" id="fab" aria-label="Abrir mi pedido" data-abrir-carrito>
+	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 7h12l-1 13H7L6 7z"></path><path d="M9 7V6a3 3 0 0 1 6 0v1"></path></svg>
+	<span class="fab-t">Mi pedido</span>
+	<span class="fab-n" id="fab-n" hidden>0</span>
+</button>
+
+<div class="velo" id="velo" hidden></div>
+
+<div class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="d-tit" aria-hidden="true">
+	<div class="d-cab">
+		<h2 id="d-tit">Tu pedido</h2>
+		<button type="button" class="d-x" id="d-x" aria-label="Cerrar el pedido">×</button>
+	</div>
+	<div class="d-cuerpo">
+		<div id="d-form-vista">
+			<p class="vacio" id="c-vacio">Todavía no agregaste nada. Elegí platos del menú y tocá "Agregar al pedido".</p>
+			<ul class="c-lista" id="c-lista"></ul>
+			<form id="form-pedido" class="form" novalidate>
+				<fieldset class="modo">
+					<legend>¿Cómo lo querés?</legend>
+					<label class="op"><input type="radio" name="modo" value="delivery" checked /><span>🛵 Delivery</span></label>
+					<label class="op"><input type="radio" name="modo" value="retiro" /><span>🏪 Retiro en local</span></label>
+				</fieldset>
+				<label>Nombre y apellido<input type="text" id="p-nombre" autocomplete="name" placeholder="Ej: María Gómez" /></label>
+				<div id="p-dir-wrap" class="form">
+					<label>Dirección de entrega<input type="text" id="p-dir" autocomplete="street-address" placeholder="Calle y número" /></label>
+					<label>Piso, depto o referencias<input type="text" id="p-ref" placeholder="Ej: Depto 3B, portón negro" /></label>
+				</div>
+				<label>
+					Forma de pago
+					<select id="p-pago">
+						<option>Efectivo al recibir</option>
+						<option>Tarjeta al recibir</option>
+					</select>
+				</label>
+				<label>Aclaraciones (opcional)<textarea id="p-nota" rows="2" placeholder="Sin cebolla, timbre roto, etc."></textarea></label>
+				<dl class="tot">
+					<div><dt>Subtotal</dt><dd id="t-sub">$ 0</dd></div>
+					<div><dt>Envío</dt><dd id="t-env">$ 0</dd></div>
+					<div class="gran"><dt>Total</dt><dd id="t-tot">$ 0</dd></div>
+				</dl>
+				<p class="aviso" id="p-aviso"></p>
+				<p class="error" id="p-error" role="alert" hidden></p>
+				<button class="btn btn-ancho" type="submit">Confirmar pedido</button>
+			</form>
+		</div>
+		<div id="d-ok" class="d-ok" hidden aria-live="polite">
+			<span class="ok" aria-hidden="true">✓</span>
+			<h3>¡Pedido recibido!</h3>
+			<p id="ok-txt"></p>
+			<p class="codigo">Código: <b id="ok-cod"></b></p>
+			<button type="button" class="btn btn-borde btn-sm" id="ok-otro">Hacer otro pedido</button>
+		</div>
+		<div class="mis" id="p-mis" hidden>
+			<h3>Mis pedidos en este dispositivo</h3>
+			<ul id="p-mis-lista"></ul>
+		</div>
+	</div>
+</div>
+
+<script>
+	import { CATALOGO, DELIVERY } from '../data/restaurante';
+	import { estadoActual, pad } from '../scripts/utils';
+
+	interface Pedido {
+		codigo: string;
+		fecha: string;
+		modo: 'retiro' | 'delivery';
+		nombre: string;
+		direccion: string;
+		ref: string;
+		pago: string;
+		nota: string;
+		items: { nombre: string; cant: number; monto: number }[];
+		sub: number;
+		envio: number;
+		total: number;
+	}
+
+	const MONEDA = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
+	const { envio: ENVIO, gratisDesde: GRATIS_DESDE, minimo: MINIMO } = DELIVERY;
+	const K_CARRITO = 'carrito-sabores';
+	const K_PEDIDOS = 'pedidos-sabores';
+	const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
+
+	const porId = Object.fromEntries(CATALOGO.map((p) => [p.id, p]));
+
+	function leerCarrito(): Record<string, number> {
+		try {
+			const c = JSON.parse(localStorage.getItem(K_CARRITO) || '{}');
+			const limpio: Record<string, number> = {};
+			Object.keys(c).forEach((id) => {
+				if (porId[id] && c[id] > 0) limpio[id] = Math.min(20, Math.floor(c[id]));
+			});
+			return limpio;
+		} catch (e) {
+			return {};
+		}
+	}
+	function guardarCarrito() {
+		try {
+			localStorage.setItem(K_CARRITO, JSON.stringify(carrito));
+		} catch (e) {}
+	}
+	function leerPedidos(): Pedido[] {
+		try {
+			return JSON.parse(localStorage.getItem(K_PEDIDOS) || '[]');
+		} catch (e) {
+			return [];
+		}
+	}
+	function guardarPedidos(a: Pedido[]) {
+		try {
+			localStorage.setItem(K_PEDIDOS, JSON.stringify(a));
+		} catch (e) {}
+	}
+	let carrito = leerCarrito();
+
+	const modoActual = () => document.querySelector<HTMLInputElement>('input[name="modo"]:checked')!.value;
+
+	function totales() {
+		let sub = 0;
+		let n = 0;
+		Object.keys(carrito).forEach((id) => {
+			sub += porId[id].monto * carrito[id];
+			n += carrito[id];
+		});
+		const retiro = modoActual() === 'retiro';
+		const envio = retiro || sub === 0 ? 0 : sub >= GRATIS_DESDE ? 0 : ENVIO;
+		return { sub, n, envio, total: sub + envio, retiro };
+	}
+
+	function cambiar(id: string, delta: number) {
+		const q = (carrito[id] || 0) + delta;
+		if (q <= 0) delete carrito[id];
+		else carrito[id] = Math.min(20, q);
+		guardarCarrito();
+		pintarCarrito();
+	}
+
+	function pintarCarrito() {
+		const t = totales();
+		const fab = $('fab-n');
+		fab.textContent = String(t.n);
+		fab.hidden = t.n === 0;
+		document.querySelectorAll<HTMLElement>('[data-cant]').forEach((el) => {
+			const q = carrito[el.getAttribute('data-cant')!] || 0;
+			el.textContent = String(q);
+			el.hidden = q === 0;
+		});
+		const ul = $('c-lista');
+		ul.innerHTML = '';
+		Object.keys(carrito).forEach((id) => {
+			const p = porId[id];
+			const q = carrito[id];
+			const li = document.createElement('li');
+			const nom = document.createElement('span');
+			nom.className = 'c-nom';
+			nom.textContent = p.nombre;
+			const pre = document.createElement('b');
+			pre.textContent = MONEDA.format(p.monto * q);
+			const ctl = document.createElement('div');
+			ctl.className = 'c-ctl';
+			const menos = document.createElement('button');
+			menos.type = 'button';
+			menos.textContent = '−';
+			menos.setAttribute('aria-label', 'Quitar uno de ' + p.nombre);
+			menos.addEventListener('click', () => cambiar(id, -1));
+			const cant = document.createElement('span');
+			cant.textContent = String(q);
+			const mas = document.createElement('button');
+			mas.type = 'button';
+			mas.textContent = '+';
+			mas.setAttribute('aria-label', 'Agregar uno de ' + p.nombre);
+			mas.addEventListener('click', () => cambiar(id, 1));
+			ctl.append(menos, cant, mas);
+			li.append(nom, ctl, pre);
+			ul.appendChild(li);
+		});
+		$('c-vacio').hidden = t.n !== 0;
+		$('form-pedido').hidden = t.n === 0;
+		$('p-dir-wrap').hidden = t.retiro;
+		$('t-sub').textContent = MONEDA.format(t.sub);
+		$('t-env').textContent = t.retiro ? 'Sin cargo' : t.envio === 0 && t.sub > 0 ? 'Gratis' : MONEDA.format(t.envio);
+		$('t-tot').textContent = MONEDA.format(t.total);
+		const av = $('p-aviso');
+		const e = estadoActual();
+		let txt = '';
+		if (!t.retiro && t.sub > 0 && t.sub < MINIMO) txt = 'El pedido mínimo para delivery es ' + MONEDA.format(MINIMO) + '. Te faltan ' + MONEDA.format(MINIMO - t.sub) + '.';
+		else if (!t.retiro && t.sub > 0 && t.sub < GRATIS_DESDE) txt = 'Sumá ' + MONEDA.format(GRATIS_DESDE - t.sub) + ' más y el envío es gratis.';
+		if (!e.abierto) txt += (txt ? ' ' : '') + 'Ahora estamos cerrados: tu pedido se prepara ' + e.cuando + ' desde las ' + e.abre + ' h.';
+		av.textContent = txt;
+		av.hidden = txt === '';
+	}
+
+	const drawer = $('drawer');
+	const velo = $('velo');
+	let ultimoFoco: HTMLElement | null = null;
+
+	function abrir() {
+		ultimoFoco = document.activeElement as HTMLElement | null;
+		drawer.classList.add('abierto');
+		drawer.setAttribute('aria-hidden', 'false');
+		velo.hidden = false;
+		document.body.classList.add('sin-scroll');
+		pintarCarrito();
+		dibujarPedidos();
+		$('d-x').focus();
+	}
+	function cerrar() {
+		drawer.classList.remove('abierto');
+		drawer.setAttribute('aria-hidden', 'true');
+		velo.hidden = true;
+		document.body.classList.remove('sin-scroll');
+		ultimoFoco?.focus?.();
+	}
+	document.querySelectorAll('[data-abrir-carrito]').forEach((b) => b.addEventListener('click', abrir));
+	$('d-x').addEventListener('click', cerrar);
+	velo.addEventListener('click', cerrar);
+	document.addEventListener('keydown', (e) => {
+		if (e.key === 'Escape' && drawer.classList.contains('abierto')) cerrar();
+	});
+
+	// Botones "Agregar" del menú y del delivery
+	document.addEventListener('click', (e) => {
+		const b = (e.target as HTMLElement).closest<HTMLElement>('[data-add]');
+		if (!b) return;
+		cambiar(b.getAttribute('data-add')!, 1);
+		b.classList.add('pulso');
+		setTimeout(() => b.classList.remove('pulso'), 350);
+	});
+	document.querySelectorAll('input[name="modo"]').forEach((r) => r.addEventListener('change', pintarCarrito));
+
+	function codigoPedido() {
+		const al = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+		let c = 'PED-';
+		for (let i = 0; i < 5; i++) c += al.charAt(Math.floor(Math.random() * al.length));
+		return c;
+	}
+
+	function dibujarPedidos() {
+		const lista = leerPedidos().slice(-5).reverse();
+		const ul = $('p-mis-lista');
+		ul.innerHTML = '';
+		$('p-mis').hidden = lista.length === 0;
+		lista.forEach((p) => {
+			const li = document.createElement('li');
+			const d = new Date(p.fecha);
+			const t = document.createElement('span');
+			t.textContent =
+				d.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' }) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) +
+				' · ' + (p.modo === 'retiro' ? 'Retiro' : 'Delivery') + ' · ' + p.items.map((i) => i.cant + '× ' + i.nombre).join(', ');
+			const tot = document.createElement('b');
+			tot.textContent = MONEDA.format(p.total);
+			const c = document.createElement('code');
+			c.textContent = p.codigo;
+			li.append(t, tot, c);
+			ul.appendChild(li);
+		});
+	}
+
+	const formPedido = $<HTMLFormElement>('form-pedido');
+	formPedido.addEventListener('submit', (ev) => {
+		ev.preventDefault();
+		const t = totales();
+		const err = $('p-error');
+		const nombre = $<HTMLInputElement>('p-nombre').value.trim();
+		const dir = $<HTMLInputElement>('p-dir').value.trim();
+		let msg = '';
+		if (t.n === 0) msg = 'Agregá al menos un plato al pedido.';
+		else if (nombre.length < 3) msg = 'Escribí tu nombre y apellido.';
+		else if (!t.retiro && dir.length < 5) msg = 'Escribí la dirección de entrega.';
+		else if (!t.retiro && t.sub < MINIMO) msg = 'El pedido mínimo para delivery es ' + MONEDA.format(MINIMO) + '.';
+		if (msg) {
+			err.textContent = msg;
+			err.hidden = false;
+			return;
+		}
+		err.hidden = true;
+		const pago = $<HTMLSelectElement>('p-pago');
+		const pedido: Pedido = {
+			codigo: codigoPedido(),
+			fecha: new Date().toISOString(),
+			modo: t.retiro ? 'retiro' : 'delivery',
+			nombre,
+			direccion: t.retiro ? '' : dir,
+			ref: t.retiro ? '' : $<HTMLInputElement>('p-ref').value.trim(),
+			pago: pago.value,
+			nota: $<HTMLTextAreaElement>('p-nota').value.trim(),
+			items: Object.keys(carrito).map((id) => ({ nombre: porId[id].nombre, cant: carrito[id], monto: porId[id].monto })),
+			sub: t.sub,
+			envio: t.envio,
+			total: t.total,
+		};
+		guardarPedidos([...leerPedidos(), pedido]);
+		const e = estadoActual();
+		let cuando: string;
+		if (!e.abierto) cuando = 'Estamos cerrados ahora: lo preparamos ' + e.cuando + ' desde las ' + e.abre + ' h.';
+		else cuando = t.retiro ? 'Estará listo para retirar en 20 a 25 minutos.' : 'Llega en 35 a 45 minutos aproximadamente.';
+		$('ok-txt').textContent =
+			nombre + ', recibimos tu pedido por ' + MONEDA.format(t.total) + ' (' + pago.value.toLowerCase() + '). ' +
+			(t.retiro ? 'Retiralo en Av. San Martín 1234. ' : 'Lo llevamos a ' + dir + '. ') + cuando;
+		$('ok-cod').textContent = pedido.codigo;
+		carrito = {};
+		guardarCarrito();
+		formPedido.reset();
+		pago.selectedIndex = 0;
+		$('d-form-vista').hidden = true;
+		$('d-ok').hidden = false;
+		pintarCarrito();
+		dibujarPedidos();
+	});
+	$('ok-otro').addEventListener('click', () => {
+		$('d-ok').hidden = true;
+		$('d-form-vista').hidden = false;
+		cerrar();
+		$('menu').scrollIntoView({ behavior: 'smooth' });
+	});
+
+	pintarCarrito();
+	dibujarPedidos();
+</script>
+
+<style is:global>
+	.fab {
+		z-index: 40;
+		background: var(--accent);
+		color: var(--accent-ink);
+		font: inherit;
+		cursor: pointer;
+		box-shadow: 0 14px 30px color-mix(in srgb, var(--accent) 45%, transparent);
+		border: 0;
+		border-radius: 999px;
+		align-items: center;
+		gap: 0.55rem;
+		padding: 0.85rem 1.3rem;
+		font-weight: 700;
+		transition: transform 0.2s;
+		display: inline-flex;
+		position: fixed;
+		bottom: 1.1rem;
+		right: 1.1rem;
+	}
+	.fab:hover { transform: translateY(-3px); }
+	.fab svg { width: 1.3rem; height: 1.3rem; }
+	.fab-n {
+		background: var(--accent-ink);
+		min-width: 1.5rem;
+		height: 1.5rem;
+		color: var(--accent);
+		border-radius: 999px;
+		place-items: center;
+		padding: 0 0.4rem;
+		font-size: 0.8rem;
+		display: inline-grid;
+	}
+	.velo { z-index: 50; backdrop-filter: blur(2px); background: #0a06038c; position: fixed; inset: 0; }
+	.sin-scroll { overflow: hidden; }
+	.drawer {
+		z-index: 60;
+		background: var(--surface);
+		border-left: 1px solid var(--line);
+		visibility: hidden;
+		flex-direction: column;
+		width: min(440px, 100%);
+		transition: transform 0.35s, visibility 0.35s;
+		display: flex;
+		position: fixed;
+		top: 0;
+		bottom: 0;
+		right: 0;
+		transform: translateX(105%);
+		box-shadow: -20px 0 50px #0000004d;
+	}
+	.drawer.abierto { visibility: visible; transform: none; }
+	.d-cab { border-bottom: 1px solid var(--line); justify-content: space-between; align-items: center; padding: 1.1rem 1.4rem; display: flex; }
+	.d-cab h2 { font-size: 1.6rem; }
+	.d-x {
+		border: 1px solid var(--line);
+		background: var(--bg);
+		width: 2.3rem;
+		height: 2.3rem;
+		color: var(--ink);
+		cursor: pointer;
+		border-radius: 50%;
+		font-size: 1.4rem;
+		line-height: 1;
+	}
+	.d-x:hover { border-color: var(--accent); color: var(--accent); }
+	.d-cuerpo { flex: 1; padding: 1.2rem 1.4rem 2rem; overflow-y: auto; }
+	.c-lista { gap: 0.5rem; margin: 0 0 1.2rem; padding: 0; list-style: none; display: grid; }
+	.c-lista li {
+		border: 1px solid var(--line);
+		background: var(--bg);
+		border-radius: 14px;
+		grid-template-columns: 1fr auto;
+		align-items: center;
+		gap: 0.3rem 0.8rem;
+		padding: 0.7rem 0.9rem;
+		display: grid;
+	}
+	.c-nom { font-size: 0.93rem; font-weight: 600; }
+	.c-lista li > b { text-align: right; font-variant-numeric: tabular-nums; grid-area: 1 / 2; }
+	.c-ctl { grid-column: 1 / -1; align-items: center; gap: 0.7rem; display: inline-flex; }
+	.c-ctl button {
+		border: 1px solid var(--line);
+		background: var(--surface);
+		width: 1.9rem;
+		height: 1.9rem;
+		color: var(--ink);
+		cursor: pointer;
+		border-radius: 50%;
+		font-size: 1.1rem;
+		line-height: 1;
+	}
+	.c-ctl button:hover { border-color: var(--accent); color: var(--accent); }
+	.modo { border: 0; gap: 0.6rem; margin: 0; padding: 0; display: flex; }
+	.modo legend { color: var(--muted); margin-bottom: 0.4rem; padding: 0; font-size: 0.88rem; font-weight: 600; }
+	.op { flex: 1; position: relative; }
+	.op input { opacity: 0; cursor: pointer; margin: 0; position: absolute; inset: 0; }
+	.op span {
+		border: 1.5px solid var(--line);
+		background: var(--bg);
+		text-align: center;
+		color: var(--ink);
+		border-radius: 14px;
+		padding: 0.7rem 0.6rem;
+		font-size: 0.9rem;
+		font-weight: 700;
+		display: block;
+	}
+	.op input:checked + span { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--bg)); color: var(--accent); }
+	.op input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+	.tot { background: var(--bg2); border-radius: 14px; gap: 0.4rem; margin: 0; padding: 0.9rem 1rem; display: grid; }
+	.tot div { justify-content: space-between; font-size: 0.93rem; display: flex; }
+	.tot dt { color: var(--muted); }
+	.tot dd { font-variant-numeric: tabular-nums; margin: 0; font-weight: 700; }
+	.tot .gran { border-top: 1px solid var(--line); padding-top: 0.5rem; font-size: 1.1rem; }
+	.tot .gran dd { color: var(--accent); }
+	.aviso { background: color-mix(in srgb, var(--gold) 18%, transparent); border-radius: 12px; padding: 0.7rem 0.9rem; font-size: 0.86rem; font-weight: 600; }
+	.d-ok { text-align: center; justify-items: center; gap: 0.7rem; padding: 2rem 0.5rem; display: grid; }
+	.d-ok h3 { font-family: Fraunces, Georgia, serif; font-size: 1.6rem; }
+	.d-ok .ok { width: 3.4rem; height: 3.4rem; }
+	.drawer .mis { border-radius: 16px; margin-top: 1.6rem; padding: 1rem; }
+	.drawer .mis li { font-size: 0.84rem; }
+	.drawer .mis li span { min-width: 100%; }
+	@media (width <= 520px) {
+		.fab-t { display: none; }
+		.fab { padding: 0.9rem; }
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.drawer { transition: none; }
+	}
+</style>

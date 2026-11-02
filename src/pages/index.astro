@@ -1,0 +1,42 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Header from '../components/Header.astro';
+import Sidebar from '../components/Sidebar.astro';
+import Hero from '../components/Hero.astro';
+import Menu from '../components/Menu.astro';
+import Delivery from '../components/Delivery.astro';
+import Horarios from '../components/Horarios.astro';
+import Reservas from '../components/Reservas.astro';
+import Carrito from '../components/Carrito.astro';
+import Footer from '../components/Footer.astro';
+---
+
+<Layout>
+	<Header />
+	<div class="pagina">
+		<Sidebar />
+		<main>
+			<Hero />
+			<Menu />
+			<Delivery />
+			<Horarios />
+			<Reservas />
+		</main>
+	</div>
+	<Carrito />
+	<Footer />
+</Layout>
+
+<style>
+	.pagina {
+		width: min(1360px, 100% - 2rem);
+		grid-template-columns: 270px minmax(0, 1fr);
+		align-items: start;
+		gap: 2rem;
+		margin-inline: auto;
+		display: grid;
+	}
+	@media (width <= 1100px) {
+		.pagina { grid-template-columns: minmax(0, 1fr); }
+	}
+</style>

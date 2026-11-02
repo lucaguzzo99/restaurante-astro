@@ -1,0 +1,429 @@
+<section class="seccion" id="reservas">
+	<div class="contenedor">
+		<header class="cabecera reveal">
+			<span class="sobretitulo">Reservas</span>
+			<h2>Reservá tu <em>mesa</em></h2>
+			<p>Elegí el día en el calendario, después el horario y completá tus datos.</p>
+		</header>
+		<div class="reserva reveal">
+			<div class="paso">
+				<div class="paso-t"><span>1</span> Elegí el día</div>
+				<div class="cal">
+					<div class="cal-cab">
+						<button type="button" class="cal-nav" id="mes-ant" aria-label="Mes anterior">‹</button>
+						<strong id="mes-tit" aria-live="polite"></strong>
+						<button type="button" class="cal-nav" id="mes-sig" aria-label="Mes siguiente">›</button>
+					</div>
+					<div class="cal-sem" aria-hidden="true"><span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span></div>
+					<div class="cal-dias" id="cal-dias"></div>
+				</div>
+				<p class="leyenda"><i class="pto"></i> Día con horario especial de fin de semana</p>
+			</div>
+			<div class="paso">
+				<div class="paso-t"><span>2</span> Elegí el horario</div>
+				<p class="vacio" id="slots-vacio">Primero elegí un día en el calendario.</p>
+				<div class="slots" id="slots" role="group" aria-label="Horarios disponibles"></div>
+				<form id="form-reserva" class="form" novalidate>
+					<div class="paso-t"><span>3</span> Tus datos</div>
+					<label>Nombre y apellido<input type="text" id="r-nombre" name="nombre" autocomplete="name" required placeholder="Ej: María Gómez" /></label>
+					<label>Cantidad de personas<select id="r-personas" name="personas"></select></label>
+					<label>Comentarios (opcional)<textarea id="r-nota" name="nota" rows="2" placeholder="Cumpleaños, alergias, silla para bebé…"></textarea></label>
+					<div class="resumen" id="resumen" aria-live="polite">Todavía no elegiste día ni horario.</div>
+					<p class="error" id="r-error" role="alert" hidden></p>
+					<button class="btn btn-ancho" type="submit">Confirmar reserva</button>
+				</form>
+			</div>
+		</div>
+		<div class="confirmacion" id="confirmacion" hidden aria-live="polite">
+			<span class="ok" aria-hidden="true">✓</span>
+			<div>
+				<h3>¡Reserva confirmada!</h3>
+				<p id="conf-txt"></p>
+				<p class="codigo">Código: <b id="conf-cod"></b></p>
+			</div>
+			<button type="button" class="btn btn-borde btn-sm" id="conf-otra">Hacer otra reserva</button>
+		</div>
+		<div class="mis" id="mis" hidden>
+			<h3>Mis reservas en este dispositivo</h3>
+			<ul id="mis-lista"></ul>
+		</div>
+	</div>
+</section>
+
+<script>
+	import { HORARIOS } from '../data/restaurante';
+	import { DIAS, MESES, pad, hm } from '../scripts/utils';
+
+	interface Reserva {
+		codigo: string;
+		fecha: string;
+		hora: number;
+		personas: number;
+		nombre: string;
+		nota: string;
+	}
+
+	const LIMITE_DIAS = 60;
+	const CLAVE = 'reservas-sabores';
+	const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
+
+	const clave = (d: Date) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+	const largo = (d: Date) => DIAS[d.getDay()] + ' ' + d.getDate() + ' de ' + MESES[d.getMonth()];
+	function hash(s: string) {
+		let h = 0;
+		for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+		return Math.abs(h);
+	}
+	function hoy0() {
+		const d = new Date();
+		d.setHours(0, 0, 0, 0);
+		return d;
+	}
+
+	function cargar(): Reserva[] {
+		try {
+			return JSON.parse(localStorage.getItem(CLAVE) || '[]');
+		} catch (e) {
+			return [];
+		}
+	}
+	function guardar(a: Reserva[]) {
+		try {
+			localStorage.setItem(CLAVE, JSON.stringify(a));
+		} catch (e) {}
+	}
+
+	const mesVista = hoy0();
+	mesVista.setDate(1);
+	let elegido: Date | null = null;
+	let horaElegida: number | null = null;
+
+	const calDias = $('cal-dias');
+	const mesTit = $('mes-tit');
+	const slotsEl = $('slots');
+	const slotsVacio = $('slots-vacio');
+	const resumen = $('resumen');
+	const errorEl = $('r-error');
+	const sel = $<HTMLSelectElement>('r-personas');
+	const form = $<HTMLFormElement>('form-reserva');
+
+	for (let i = 1; i <= 12; i++) {
+		const o = document.createElement('option');
+		o.value = String(i);
+		o.textContent = i === 1 ? '1 persona' : i + ' personas';
+		if (i === 2) o.selected = true;
+		sel.appendChild(o);
+	}
+
+	function franjas(d: Date) {
+		const cfg = HORARIOS[d.getDay()];
+		const salida: number[] = [];
+		const ahora = new Date();
+		const esHoy = clave(d) === clave(ahora);
+		const minAhora = ahora.getHours() * 60 + ahora.getMinutes();
+		for (let m = cfg.abre; m <= cfg.cierra - 90; m += 30) {
+			if (esHoy && m < minAhora + 30) continue;
+			salida.push(m);
+		}
+		return salida;
+	}
+	const ocupadoPorMi = (d: Date, m: number) => cargar().some((r) => r.fecha === clave(d) && r.hora === m);
+	const completo = (d: Date, m: number) => hash(clave(d) + '-' + m) % 4 === 0;
+
+	function dibujarCalendario() {
+		const y = mesVista.getFullYear();
+		const mo = mesVista.getMonth();
+		mesTit.textContent = MESES[mo].charAt(0).toUpperCase() + MESES[mo].slice(1) + ' ' + y;
+		const hoy = hoy0();
+		const tope = new Date(hoy);
+		tope.setDate(tope.getDate() + LIMITE_DIAS);
+		const offset = (new Date(y, mo, 1).getDay() + 6) % 7; // lunes = 0
+		const total = new Date(y, mo + 1, 0).getDate();
+		let html = '';
+		for (let v = 0; v < offset; v++) html += '<span class="vacio-d"></span>';
+		for (let dia = 1; dia <= total; dia++) {
+			const f = new Date(y, mo, dia);
+			const deshab = f < hoy || f > tope || franjas(f).length === 0;
+			const esp = HORARIOS[f.getDay()].especial ? ' esp' : '';
+			const act = elegido && clave(f) === clave(elegido) ? ' activo' : '';
+			const esH = clave(f) === clave(hoy) ? ' es-hoy' : '';
+			html += `<button type="button" class="dia${esp}${act}${esH}" data-f="${clave(f)}"${deshab ? ' disabled' : ''} aria-label="${largo(f)}" aria-pressed="${act ? 'true' : 'false'}">${dia}</button>`;
+		}
+		calDias.innerHTML = html;
+		const base = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+		$<HTMLButtonElement>('mes-ant').disabled = mesVista <= base;
+		$<HTMLButtonElement>('mes-sig').disabled = new Date(y, mo + 1, 1) > tope;
+	}
+
+	function dibujarFranjas() {
+		slotsEl.innerHTML = '';
+		if (!elegido) {
+			slotsVacio.hidden = false;
+			return;
+		}
+		slotsVacio.hidden = true;
+		franjas(elegido).forEach((m) => {
+			const b = document.createElement('button');
+			b.type = 'button';
+			b.className = 'slot';
+			b.textContent = hm(m);
+			const mio = ocupadoPorMi(elegido!, m);
+			if (mio || completo(elegido!, m)) {
+				b.disabled = true;
+				b.title = mio ? 'Ya reservaste este horario' : 'Horario completo';
+				b.classList.add('lleno');
+				const s = document.createElement('small');
+				s.textContent = mio ? 'Tuya' : 'Completo';
+				b.appendChild(s);
+			}
+			if (horaElegida === m) {
+				b.classList.add('activo');
+				b.setAttribute('aria-pressed', 'true');
+			}
+			b.dataset.m = String(m);
+			slotsEl.appendChild(b);
+		});
+	}
+
+	function dibujarResumen() {
+		if (!elegido || horaElegida === null) {
+			resumen.textContent = elegido ? 'Elegí un horario para continuar.' : 'Todavía no elegiste día ni horario.';
+			return;
+		}
+		const p = sel.value;
+		resumen.textContent = largo(elegido) + ' · ' + hm(horaElegida) + ' h · ' + p + (p === '1' ? ' persona' : ' personas');
+	}
+
+	calDias.addEventListener('click', (e) => {
+		const b = (e.target as HTMLElement).closest<HTMLButtonElement>('.dia');
+		if (!b || b.disabled) return;
+		const p = b.dataset.f!.split('-');
+		elegido = new Date(+p[0], +p[1] - 1, +p[2]);
+		horaElegida = null;
+		dibujarCalendario();
+		dibujarFranjas();
+		dibujarResumen();
+		errorEl.hidden = true;
+	});
+	slotsEl.addEventListener('click', (e) => {
+		const b = (e.target as HTMLElement).closest<HTMLButtonElement>('.slot');
+		if (!b || b.disabled) return;
+		horaElegida = +b.dataset.m!;
+		dibujarFranjas();
+		dibujarResumen();
+		errorEl.hidden = true;
+	});
+	$('mes-ant').addEventListener('click', () => {
+		mesVista.setMonth(mesVista.getMonth() - 1);
+		dibujarCalendario();
+	});
+	$('mes-sig').addEventListener('click', () => {
+		mesVista.setMonth(mesVista.getMonth() + 1);
+		dibujarCalendario();
+	});
+	sel.addEventListener('change', dibujarResumen);
+
+	function codigo() {
+		const al = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+		let c = 'SDS-';
+		for (let i = 0; i < 5; i++) c += al.charAt(Math.floor(Math.random() * al.length));
+		return c;
+	}
+
+	function dibujarMis() {
+		const lista = cargar().filter((r) => r.fecha >= clave(hoy0()));
+		lista.sort((a, b) => (a.fecha === b.fecha ? a.hora - b.hora : a.fecha < b.fecha ? -1 : 1));
+		const ul = $('mis-lista');
+		ul.innerHTML = '';
+		$('mis').hidden = lista.length === 0;
+		lista.forEach((r) => {
+			const li = document.createElement('li');
+			const p = r.fecha.split('-');
+			const f = new Date(+p[0], +p[1] - 1, +p[2]);
+			const t = document.createElement('span');
+			t.textContent = largo(f) + ' · ' + hm(r.hora) + ' h · ' + r.personas + (r.personas === 1 ? ' persona' : ' personas') + ' · ' + r.nombre;
+			const c = document.createElement('code');
+			c.textContent = r.codigo;
+			const x = document.createElement('button');
+			x.type = 'button';
+			x.className = 'cancelar';
+			x.textContent = 'Cancelar';
+			x.addEventListener('click', () => {
+				guardar(cargar().filter((q) => q.codigo !== r.codigo));
+				dibujarMis();
+				dibujarFranjas();
+				dibujarCalendario();
+			});
+			li.append(t, c, x);
+			ul.appendChild(li);
+		});
+	}
+
+	form.addEventListener('submit', (e) => {
+		e.preventDefault();
+		const nombre = $<HTMLInputElement>('r-nombre').value.trim();
+		let msg = '';
+		if (!elegido) msg = 'Elegí un día en el calendario.';
+		else if (horaElegida === null) msg = 'Elegí un horario disponible.';
+		else if (nombre.length < 3) msg = 'Escribí tu nombre y apellido.';
+		if (msg || !elegido || horaElegida === null) {
+			errorEl.textContent = msg;
+			errorEl.hidden = false;
+			return;
+		}
+		errorEl.hidden = true;
+		const personas = +sel.value;
+		const res: Reserva = {
+			codigo: codigo(),
+			fecha: clave(elegido),
+			hora: horaElegida,
+			personas,
+			nombre,
+			nota: $<HTMLTextAreaElement>('r-nota').value.trim(),
+		};
+		guardar([...cargar(), res]);
+		$('conf-txt').textContent = nombre + ', te esperamos el ' + largo(elegido) + ' a las ' + hm(horaElegida) + ' h para ' + personas + (personas === 1 ? ' persona.' : ' personas.');
+		$('conf-cod').textContent = res.codigo;
+		const conf = $('confirmacion');
+		conf.hidden = false;
+		conf.scrollIntoView({ behavior: 'smooth', block: 'center' });
+		horaElegida = null;
+		elegido = null;
+		form.reset();
+		sel.value = '2';
+		dibujarCalendario();
+		dibujarFranjas();
+		dibujarResumen();
+		dibujarMis();
+	});
+	$('conf-otra').addEventListener('click', () => {
+		$('confirmacion').hidden = true;
+		$('reservas').scrollIntoView({ behavior: 'smooth' });
+	});
+
+	dibujarCalendario();
+	dibujarFranjas();
+	dibujarResumen();
+	dibujarMis();
+</script>
+
+<style is:global>
+	.reserva {
+		background: var(--surface);
+		border: 1px solid var(--line);
+		box-shadow: var(--sombra);
+		border-radius: 30px;
+		grid-template-columns: 1fr 1fr;
+		gap: 1.7rem;
+		padding: 2rem;
+		display: grid;
+	}
+	@media (width <= 860px) {
+		.reserva { grid-template-columns: 1fr; padding: 1.3rem; }
+	}
+	.paso-t { align-items: center; gap: 0.7rem; margin-bottom: 1rem; font-size: 1.05rem; font-weight: 800; display: flex; }
+	.paso-t span {
+		background: var(--accent);
+		width: 1.9rem;
+		height: 1.9rem;
+		color: var(--accent-ink);
+		border-radius: 50%;
+		place-items: center;
+		font-size: 0.9rem;
+		display: grid;
+	}
+	.cal { border: 1px solid var(--line); background: var(--bg); border-radius: 20px; padding: 1rem; }
+	.cal-cab { justify-content: space-between; align-items: center; margin-bottom: 0.7rem; font-family: Fraunces, Georgia, serif; font-size: 1.15rem; display: flex; }
+	.cal-nav {
+		border: 1px solid var(--line);
+		background: var(--surface);
+		width: 2.2rem;
+		height: 2.2rem;
+		color: var(--ink);
+		cursor: pointer;
+		border-radius: 50%;
+		font-size: 1.3rem;
+		line-height: 1;
+	}
+	.cal-nav:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+	.cal-nav:disabled { opacity: 0.35; cursor: not-allowed; }
+	.cal-sem, .cal-dias { grid-template-columns: repeat(7, 1fr); gap: 4px; display: grid; }
+	.cal-sem span { text-align: center; color: var(--muted); padding-block: 0.3rem; font-size: 0.75rem; font-weight: 700; }
+	.dia {
+		aspect-ratio: 1;
+		background: var(--surface);
+		color: var(--ink);
+		font: inherit;
+		cursor: pointer;
+		border: 1px solid transparent;
+		border-radius: 12px;
+		font-weight: 600;
+		transition: background 0.15s, transform 0.15s;
+		position: relative;
+	}
+	.dia:hover:not(:disabled) { border-color: var(--accent); transform: scale(1.06); }
+	.dia:disabled { color: var(--muted); opacity: 0.4; cursor: not-allowed; background: transparent; }
+	.dia.es-hoy { border-color: var(--olive); }
+	.dia.esp::after {
+		content: '';
+		background: var(--gold);
+		border-radius: 50%;
+		width: 5px;
+		height: 5px;
+		margin-left: -2.5px;
+		position: absolute;
+		bottom: 5px;
+		left: 50%;
+	}
+	.dia.activo { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+	.leyenda { color: var(--muted); margin-top: 0.8rem; font-size: 0.8rem; }
+	.pto { background: var(--gold); border-radius: 50%; width: 8px; height: 8px; margin-right: 0.3rem; display: inline-block; }
+
+	.slots { flex-wrap: wrap; gap: 0.5rem; max-height: 190px; margin-bottom: 1.4rem; padding: 2px; display: flex; overflow-y: auto; }
+	.slot {
+		border: 1px solid var(--line);
+		background: var(--bg);
+		color: var(--ink);
+		font: inherit;
+		font-variant-numeric: tabular-nums;
+		cursor: pointer;
+		border-radius: 999px;
+		padding: 0.5rem 0.9rem;
+		font-size: 0.9rem;
+		font-weight: 600;
+		transition: background 0.15s, border-color 0.15s;
+	}
+	.slot:hover:not(:disabled) { border-color: var(--accent); }
+	.slot.activo { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+	.slot.lleno { opacity: 0.5; cursor: not-allowed; text-decoration: line-through; }
+	.slot small { margin-left: 0.35rem; font-size: 0.68rem; text-decoration: none; display: inline-block; }
+
+	#form-reserva .paso-t { margin: 0; }
+	.resumen { background: color-mix(in srgb, var(--olive) 14%, transparent); color: var(--ink); border-radius: 12px; padding: 0.8rem 1rem; font-size: 0.92rem; font-weight: 600; }
+
+	.confirmacion {
+		border: 1px solid var(--olive);
+		background: color-mix(in srgb, var(--olive) 12%, var(--surface));
+		border-radius: 22px;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 1.2rem;
+		margin-top: 1.5rem;
+		padding: 1.5rem 1.8rem;
+		display: flex;
+	}
+	.confirmacion > div { flex: 1; min-width: 220px; }
+	.confirmacion h3 { font-family: Fraunces, Georgia, serif; font-size: 1.4rem; }
+	.cancelar {
+		border: 1px solid var(--line);
+		color: var(--muted);
+		font: inherit;
+		cursor: pointer;
+		background: transparent;
+		border-radius: 999px;
+		padding: 0.35rem 0.9rem;
+		font-size: 0.8rem;
+		font-weight: 600;
+	}
+	.cancelar:hover { color: #d6342a; border-color: #d6342a; }
+</style>

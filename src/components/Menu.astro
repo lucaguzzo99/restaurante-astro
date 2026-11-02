@@ -1,0 +1,63 @@
+---
+import { PLATOS, formatoPrecio } from '../data/restaurante';
+---
+
+<section class="seccion" id="menu">
+	<div class="contenedor">
+		<header class="cabecera reveal">
+			<span class="sobretitulo">Nuestra carta</span>
+			<h2>Platos que <em>enamoran</em></h2>
+			<p>Una selección de lo que más piden nuestros clientes.</p>
+		</header>
+		<div class="grilla">
+			{
+				PLATOS.map((p) => (
+					<article class="plato-card reveal">
+						<figure class="plato-img">
+							<img src={`/images/${p.img}`} alt={p.alt} width="1000" height="750" loading="lazy" />
+							<span class="tag">{p.tag}</span>
+						</figure>
+						<div class="plato-info">
+							<header class="plato-fila">
+								<h3>{p.nombre}</h3>
+								<strong>{formatoPrecio(p.monto)}</strong>
+							</header>
+							<p>{p.desc}</p>
+							<footer>
+								<button type="button" class="agregar" data-add={p.id}>
+									Agregar al pedido <span class="cant" data-cant={p.id} hidden>0</span>
+								</button>
+							</footer>
+						</div>
+					</article>
+				))
+			}
+		</div>
+	</div>
+</section>
+
+<style>
+	.grilla { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.7rem; display: grid; }
+	.plato-card { background: var(--surface); border: 1px solid var(--line); border-radius: 24px; transition: transform 0.3s, box-shadow 0.3s; overflow: hidden; }
+	.plato-card:hover { box-shadow: var(--sombra); transform: translateY(-8px); }
+	.plato-img { margin: 0; position: relative; overflow: hidden; }
+	.plato-img img { aspect-ratio: 4 / 3; object-fit: cover; width: 100%; transition: transform 0.5s; }
+	.plato-card:hover .plato-img img { transform: scale(1.06); }
+	.tag {
+		background: var(--surface);
+		color: var(--ink);
+		border-radius: 999px;
+		padding: 0.25rem 0.8rem;
+		font-size: 0.75rem;
+		font-weight: 700;
+		position: absolute;
+		top: 0.9rem;
+		left: 0.9rem;
+		box-shadow: 0 6px 16px #0000002e;
+	}
+	.plato-info { padding: 1.2rem 1.4rem 1.5rem; }
+	.plato-fila { justify-content: space-between; align-items: baseline; gap: 0.8rem; margin-bottom: 0.4rem; display: flex; }
+	.plato-fila h3 { font-size: 1.12rem; }
+	.plato-fila strong { color: var(--accent); white-space: nowrap; }
+	.plato-info p { color: var(--muted); font-size: 0.93rem; }
+</style>

@@ -1,0 +1,67 @@
+---
+import { DELIVERY, formatoPrecio } from '../data/restaurante';
+---
+
+<aside class="lateral" aria-label="Información del local">
+	<p class="lat-tit">Hoy en Sabores del Sur</p>
+	<span class="etiqueta" id="estado"><i></i> <b id="estado-txt">Consultando horario…</b></span>
+	<ul class="lat-lista">
+		<li><strong>📍 Dónde estamos</strong>Av. San Martín 1234</li>
+		<li><strong>🛵 Delivery</strong>Envío gratis desde {formatoPrecio(DELIVERY.gratisDesde)}. Pedido mínimo {formatoPrecio(DELIVERY.minimo)}.</li>
+		<li><strong>📅 Reservas</strong>Online, a cualquier hora.</li>
+	</ul>
+	<a class="btn btn-ancho" href="#reservas">Reservar mesa</a>
+</aside>
+
+<script>
+	import { estadoActual } from '../scripts/utils';
+
+	const etiqueta = document.getElementById('estado')!;
+	const texto = document.getElementById('estado-txt')!;
+
+	function actualizar() {
+		const e = estadoActual();
+		etiqueta.classList.toggle('abierto', e.abierto);
+		texto.textContent = e.abierto
+			? 'Abierto ahora · cerramos a las ' + e.cierra
+			: 'Cerrado · abrimos ' + (e.cuando === 'hoy' ? 'hoy' : 'mañana') + ' a las ' + e.abre;
+	}
+	actualizar();
+	setInterval(actualizar, 60000);
+</script>
+
+<style>
+	.lateral {
+		background: var(--surface);
+		border: 1px solid var(--line);
+		border-radius: 22px;
+		gap: 1rem;
+		margin-top: 1rem;
+		padding: 1.4rem;
+		display: grid;
+		position: sticky;
+		top: 130px;
+	}
+	.lat-tit { font-family: Fraunces, Georgia, serif; font-size: 1.2rem; font-weight: 700; }
+	.etiqueta {
+		border: 1px solid var(--line);
+		background: var(--surface);
+		color: var(--muted);
+		border-radius: 999px;
+		align-items: center;
+		gap: 0.55rem;
+		justify-self: start;
+		padding: 0.4rem 1rem;
+		font-size: 0.85rem;
+		display: inline-flex;
+	}
+	.etiqueta i { background: #b4a79a; border-radius: 50%; width: 9px; height: 9px; }
+	.etiqueta.abierto i { background: #2fa862; box-shadow: 0 0 0 4px #2fa86238; }
+	.etiqueta b { color: var(--ink); font-weight: 600; }
+	.lat-lista { color: var(--muted); gap: 0.9rem; margin: 0; padding: 0; font-size: 0.9rem; list-style: none; display: grid; }
+	.lat-lista strong { color: var(--ink); display: block; }
+
+	@media (width <= 1100px) {
+		.lateral { order: 2; margin: 0 0 3rem; position: static; }
+	}
+</style>
